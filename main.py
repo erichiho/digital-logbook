@@ -8,7 +8,7 @@ from workalendar.asia import HongKong
 
 cal = HongKong()
 headers = {
-    "authorization": "8db7e4e9-d516-11ee-8d7a-fa163e1111b9"
+    "authorization": "Input your ID here"
 }
 today = date.today()
 
