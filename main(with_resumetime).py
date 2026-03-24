@@ -23,12 +23,15 @@ all_breakdown = []
 callReceiveTime = []
 arrivalTime = []
 time_required = []
+downtime = []
 equipment_no = []
 chineseAddress = []
 locationID = []
 late = []
 content = []
-breakdown = {"Venue": chineseAddress,"Equip No": equipment_no, "LocationID": locationID, "Call Time": callReceiveTime, "Arr Time": arrivalTime, "Time Req": time_required, "Late": late, "Content": content}
+serviceResumedTime = []
+resumption_minutes = []
+breakdown = {"Venue": chineseAddress,"Equip No": equipment_no, "LocationID": locationID, "Call Time": callReceiveTime, "Arr Time": arrivalTime, "Arr Time Req": time_required, "Late": late, "Resume Time": serviceResumedTime, "Resume Minutes": resumption_minutes, "Content": content}
 
 
 print(f"Total pages is {response.json()["totalPages"]}")
@@ -62,26 +65,53 @@ for page in range(1,totalPages):
     response = requests.get(url=f"https://digitallogbooks.emsd.gov.hk/api/public/recentJobRecord?date_from={today-timedelta(days=60)}&date_to={today}&page={page}&client_id=ORG1587", headers=headers)
     for item in range(sizePerPage):
         try:
-            if response.json()["data"][item]["typesOfWorks"] == "TW01" or response.json()["data"][item]["typesOfWorks"] == "TW02":
+            if "TW01" or "TW02" in response.json()["data"][item]["typesOfWorks"]:
 
                 print(f"number {item} is a breakdown case")
                 print(response.json()["data"][item]["callReceiveTime"])
                 callReceiveTime.append(response.json()["data"][item]["callReceiveTime"])
                 arrivalTime.append(response.json()["data"][item]["arrivalTime"])
+                try:
+                    serviceResumedTime.append(response.json()["data"][item]["serviceResumedTime"])
+                except (KeyError, IndexError, AttributeError, TypeError):
+                    serviceResumedTime.append(0)
                 locationID.append(response.json()["data"][item]["relatedLogbooks"][0]["basicLogbookInfo"]["locationID"])
                 hr_arr = int(response.json()["data"][item]["arrivalTime"][11:13])
                 hr_call = int(response.json()["data"][item]["callReceiveTime"][11:13])
+
+                try:
+                    hr_resume = int(response.json()["data"][item]["serviceResumedTime"][11:13])
+                except (KeyError, IndexError, AttributeError, TypeError, ValueError):
+                    hr_resume = 0
+
                 year_call = int(response.json()["data"][item]["callReceiveTime"][0:4])
                 month_call = int(response.json()["data"][item]["callReceiveTime"][5:7])
                 day_call = int(response.json()["data"][item]["callReceiveTime"][8:10])
+                day_arr = int(response.json()["data"][item]["arrivalTime"][8:10])
+                try:
+                    day_resume = int(response.json()["data"][item]["serviceResumedTime"][8:10])
+                except:
+                    day_resume = 0
                 weekday = datetime(year_call, month_call,day_call).weekday()
-                t = int((hr_arr - hr_call) * 60) + int(response.json()["data"][item]["arrivalTime"][14:16]) - int(response.json()["data"][item]["callReceiveTime"][14:16])
+
+                t = int((day_arr - day_call) *24*60) + int((hr_arr - hr_call) * 60) + int(response.json()["data"][item]["arrivalTime"][14:16]) - int(response.json()["data"][item]["callReceiveTime"][14:16])
 
                 time_required.append(t)
                 if check_late(weekday, t, response.json()["data"][item]["typesOfWorks"], hr_call, year_call, month_call, day_call) == True:
                     late.append("yes")
                 else:
                     late.append("no")
+
+                try:
+                    if day_resume != 0:
+                        t2 = int((day_resume - day_call) *24*60) + int((hr_resume - hr_call) * 60) + int(response.json()["data"][item]["serviceResumedTime"][14:16]) - int(response.json()["data"][item]["callReceiveTime"][14:16])
+                        resumption_minutes.append(t2)
+                    elif day_resume ==0:
+                        resumption_minutes.append(0)
+                except (KeyError, IndexError, AttributeError, TypeError, ValueError):
+                    pass
+                    resumption_minutes.append(0)
+
                 chineseAddress.append(response.json()["data"][item]["chineseAddress"])
                 equipment_no.append(response.json()["data"][item]["relatedLogbooks"][0]["basicLogbookInfo"]["leType"] + response.json()["data"][item]["relatedLogbooks"][0]["basicLogbookInfo"]["leNumber"])
                 content.append(response.json()["data"][item]["relatedLogbooks"][0]["remark"]["content"])
@@ -110,6 +140,8 @@ print(f"all address is {chineseAddress}")
 print(f"all location ID is {locationID}")
 print(f"all equipment number is {equipment_no}")
 print(f"all content is {content}")
+print(f"all resume time is {serviceResumedTime}")
+
 
 df = pd.DataFrame(breakdown)
 print(df)
@@ -127,3 +159,4 @@ for j in unique_list:
 print(repeated_call)
 
 df.to_csv("breakdown.csv")
+
